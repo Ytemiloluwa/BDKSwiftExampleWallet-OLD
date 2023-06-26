@@ -1,17 +1,15 @@
 //
-//  WalletView.swift
+//  SendView.swift
 //  BDKSwiftExampleWallet
 //
-//  Created by Matthew Ramsden on 5/23/23.
+//  Created by Matthew Ramsden on 6/20/23.
 //
 
 import SwiftUI
 import WalletUI
 import BitcoinDevKit
 
-class WalletViewModel: ObservableObject {
-    // Address
-    @Published var address: String = ""
+class SendViewModel: ObservableObject {
     
     // Balance
     @Published var balanceImmature: UInt64 = 0
@@ -24,15 +22,9 @@ class WalletViewModel: ObservableObject {
     // Sync
     @Published var lastSyncTime: Date? = nil
     @Published var walletSyncState: WalletSyncState = .notStarted
-
-    func getAddress() {
-        do {
-            let address = try BDKService.shared.getAddress()
-            self.address = address
-        } catch {
-            self.address = "Error getting address."
-        }
-    }
+    
+    // Transactions
+    @Published var transactionDetails: [TransactionDetails] = []
     
     func getBalance() {
         do {
@@ -50,6 +42,15 @@ class WalletViewModel: ObservableObject {
         }
     }
     
+    func getTransactions() {
+        do {
+            let transactionDetails = try BDKService.shared.getTransactions()
+            self.transactionDetails = transactionDetails
+        } catch {
+            print("getTransactions - none: \(error.localizedDescription)")
+        }
+    }
+    
     func sync() async {
         DispatchQueue.main.async {
             self.walletSyncState = .syncing
@@ -60,8 +61,8 @@ class WalletViewModel: ObservableObject {
                 DispatchQueue.main.async {
                     self.walletSyncState = .synced
                     self.lastSyncTime = Date()
-                    self.getAddress()
                     self.getBalance()
+                    self.getTransactions()
                 }
             } catch {
                 DispatchQueue.main.async {
@@ -70,10 +71,10 @@ class WalletViewModel: ObservableObject {
             }
         }
     }
-    
 }
 
-extension WalletViewModel {
+extension SendViewModel {
+    
     enum WalletSyncState: CustomStringConvertible, Equatable {
         case error(Error)
         case notStarted
@@ -110,9 +111,10 @@ extension WalletViewModel {
     }
 }
 
-struct WalletView: View {
-    @ObservedObject var viewModel: WalletViewModel
-    
+
+struct SendView: View {
+    @ObservedObject var viewModel: SendViewModel
+
     var body: some View {
         
         ZStack {
@@ -120,69 +122,18 @@ struct WalletView: View {
                 .ignoresSafeArea()
             
             VStack(spacing: 20) {
-                VStack {
-                    Text("Address:")
-                    Text(viewModel.address)
-                        .font(.caption)
+                Text("Your Balance")
+                    .bold()
+                    .foregroundColor(.secondary)
+                HStack {
+                    Text(viewModel.balanceTotal.delimiter)
+                    Text("sats")
                 }
-                VStack {
-                    VStack {
-                        Text("Total Balance:")
-                        Text(String(viewModel.balanceTotal))
-                            .font(.largeTitle)
-                    }
-                    HStack {
-                        Text("Immature Balance:")
-                        Text(String(viewModel.balanceImmature))
-                    }
-                    .font(.caption)
-                    HStack {
-                        Text("Trusted Pending Balance:")
-                        Text(String(viewModel.balanceTrustedPending))
-                    }
-                    .font(.caption)
-                    HStack {
-                        Text("Untrusted Pending Balance:")
-                        Text(String(viewModel.balanceUntrustedPending))
-                    }
-                    .font(.caption)
-                    HStack {
-                        Text("Confirmed Balance:")
-                        Text(String(viewModel.balanceConfirmed))
-                    }
-                    .font(.caption)
-                    HStack {
-                        Text("Spendable Balance:")
-                        Text(String(viewModel.balanceSpendable))
-                    }
-                    .font(.caption)
-                }
-                VStack {
-                    HStack(spacing: 5) {
-                        Text(viewModel.walletSyncState.description)
-                        if viewModel.walletSyncState == .syncing {
-                            ProgressView()
-                        }
-                        
-                    }
-                    if let lastSyncTime = viewModel.lastSyncTime {
-                        Text("Last Synced: \(lastSyncTime.formattedSyncTime())")
-                            .font(.caption)
-                    }
-                }
-                Button {
-                    Task {
-                        await viewModel.sync()
-                    }
-                } label: {
-                    Text("Sync")
-                }
-                .buttonStyle(BitcoinOutlined(tintColor: .bitcoinOrange))
-                .disabled(viewModel.walletSyncState == .syncing)
+                .font(.largeTitle)
+                Spacer()
             }
             .padding()
             .onAppear {
-                viewModel.getAddress()
                 viewModel.getBalance()
             }
             .task {
@@ -195,11 +146,11 @@ struct WalletView: View {
     
 }
 
-struct WalletView_Previews: PreviewProvider {
+struct SendView_Previews: PreviewProvider {
     static var previews: some View {
-        WalletView(viewModel: .init())
+        SendView(viewModel: .init())
             .previewDisplayName("Light Mode")
-        WalletView(viewModel: .init())
+        SendView(viewModel: .init())
             .environment(\.colorScheme, .dark)
             .previewDisplayName("Dark Mode")
     }
